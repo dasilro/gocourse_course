@@ -35,12 +35,16 @@ func NewService(log *log.Logger, repo Repository) Service {
 func (s service) Create(ctx context.Context, name, startDate, endDate string) (*domain.Course, error) {
 	startDateParsed, err := time.Parse(time.DateOnly, startDate)
 	if err != nil {
-		return nil, err
+		return nil, ErrStartDateInvalid
 	}
 
 	endDateParsed, err := time.Parse(time.DateOnly, endDate)
 	if err != nil {
-		return nil, err
+		return nil, ErrEndDateInvalid
+	}
+
+	if startDateParsed.After(endDateParsed) {
+		return nil, ErrEndLesserStart
 	}
 
 	course := domain.Course{Name: name, StartDate: startDateParsed, EndDate: endDateParsed}
@@ -64,12 +68,22 @@ func (s service) Delete(ctx context.Context, id string) error {
 }
 
 func (s service) Update(ctx context.Context, id string, name *string, startDate *string, endDate *string) error {
+
+	course, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	var startDateParsed *time.Time
 	if startDate != nil {
 		parsed, err := time.Parse(time.DateOnly, *startDate)
 		if err != nil {
 			s.log.Println(err)
-			return err
+			return ErrStartDateInvalid
+		}
+		if parsed.After(course.EndDate) {
+			s.log.Println(err)
+			return ErrEndLesserStart
 		}
 		startDateParsed = &parsed
 	}
@@ -79,8 +93,13 @@ func (s service) Update(ctx context.Context, id string, name *string, startDate 
 		parsed, err := time.Parse(time.DateOnly, *endDate)
 		if err != nil {
 			s.log.Println(err)
-			return err
+			return ErrEndDateInvalid
 		}
+		if course.StartDate.After(parsed) {
+			s.log.Println(err)
+			return ErrEndLesserStart
+		}
+
 		endDateParsed = &parsed
 	}
 

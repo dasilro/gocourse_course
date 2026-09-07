@@ -9,7 +9,6 @@ import (
 )
 
 type (
-	//Controller func(w http.ResponseWriter, r *http.Request)
 	Controller func(ctx context.Context, request interface{}) (interface{}, error)
 
 	Endpoints struct {
@@ -46,13 +45,6 @@ type (
 		StartDate *string `json:"start_date"`
 		EndDate   *string `json:"end_date"`
 	}
-
-	Response struct {
-		Status int         `json:"status"`
-		Data   interface{} `json:"data,omitempty"`
-		Err    string      `json:"err,omitempty"`
-		Meta   *meta.Meta  `json:"meta,omitempty"`
-	}
 )
 
 func MakeEndpoints(s Service, paginatorLimitDefault string) Endpoints {
@@ -86,6 +78,9 @@ func makeCreateEndpoint(s Service) Controller {
 
 		course, err := s.Create(ctx, req.Name, req.StartDate, req.EndDate)
 		if err != nil {
+			if err == ErrStartDateInvalid || err == ErrEndDateInvalid || err == ErrEndLesserStart {
+				return nil, response.BadRequest(err.Error())
+			}
 			return nil, response.InternalServerError(err.Error())
 		}
 		return response.Created("success", course, nil), nil
@@ -150,6 +145,11 @@ func makeUpdateEndpoint(s Service) Controller {
 
 		err := s.Update(ctx, req.ID, req.Name, req.StartDate, req.EndDate)
 		if err != nil {
+			if err == ErrStartDateInvalid ||
+				err == ErrEndDateInvalid ||
+				err == ErrEndLesserStart {
+				return nil, response.BadRequest(err.Error())
+			}
 			if errors.As(err, &ErrNotFound{}) {
 				return nil, response.NotFound(err.Error())
 			}
